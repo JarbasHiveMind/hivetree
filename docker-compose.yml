@@ -1,0 +1,55 @@
+# A three-tier HiveMind test tree on an isolated bridge network:
+#
+#         m0  (root master + echo agent)        host :6700
+#        /                       \
+#      r1 (relay, upstream->m0)   r2 (relay, upstream->m0)
+#      host :6701                 host :6702
+#
+# Leaves (sat-1a/1b under r1, sat-2a/2b under r2) are the probe clients that
+# connect to the published host ports. Upstream links are pre-wired with the
+# fixed credentials in .env, so the tree forms with no manual copy step.
+name: hivetree
+
+services:
+  m0:
+    build: .
+    image: hivetree-node:latest
+    container_name: hivetree-m0
+    hostname: m0
+    environment:
+      NODE_ROLE: root
+      CLIENTS: "r1:${R1_UP_KEY}:${R1_UP_PWD} r2:${R2_UP_KEY}:${R2_UP_PWD} m0dir:${M0DIR_KEY}:${M0DIR_PWD}"
+    networks: [hivetree]
+    ports: ["6700:5678"]
+
+  r1:
+    image: hivetree-node:latest
+    container_name: hivetree-r1
+    hostname: r1
+    environment:
+      NODE_ROLE: relay
+      UPSTREAM_HOST: m0
+      UPSTREAM_KEY: ${R1_UP_KEY}
+      UPSTREAM_PWD: ${R1_UP_PWD}
+      CLIENTS: "sat-1a:${SAT1A_KEY}:${SAT1A_PWD} sat-1b:${SAT1B_KEY}:${SAT1B_PWD}"
+    depends_on: [m0]
+    networks: [hivetree]
+    ports: ["6701:5678"]
+
+  r2:
+    image: hivetree-node:latest
+    container_name: hivetree-r2
+    hostname: r2
+    environment:
+      NODE_ROLE: relay
+      UPSTREAM_HOST: m0
+      UPSTREAM_KEY: ${R2_UP_KEY}
+      UPSTREAM_PWD: ${R2_UP_PWD}
+      CLIENTS: "sat-2a:${SAT2A_KEY}:${SAT2A_PWD} sat-2b:${SAT2B_KEY}:${SAT2B_PWD}"
+    depends_on: [m0]
+    networks: [hivetree]
+    ports: ["6702:5678"]
+
+networks:
+  hivetree:
+    driver: bridge

@@ -1,0 +1,34 @@
+name: Build image
+
+# The image is the whole product of this repository: a mesh of HiveMind nodes
+# in docker compose. Nothing checked a build before this workflow, so a base
+# image bump (#3) was proven by hand. This builds the image with no push and
+# imports the agent inside it, which resolves every package the RUN line
+# installs on the image's own Python.
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the node image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: hivetree-node:ci
+      - name: Import the stack inside the image
+        # mock_agent.py connects to a bus at import time, so it is compiled,
+        # not imported. The packages the RUN line installs are imported.
+        run: |
+          docker run --rm --entrypoint python hivetree-node:ci -c \
+            "import py_compile, sys; py_compile.compile('/app/mock_agent.py', doraise=True); import hivemind_core, hivemind_websocket_protocol, hivemind_ovos_agent_plugin, ovos_messagebus, ovos_bus_client; print(sys.version)"
